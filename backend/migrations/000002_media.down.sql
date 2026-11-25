@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS chunk_uploads;
+DROP TABLE IF EXISTS album_media;
+DROP TABLE IF EXISTS albums;
+DROP TABLE IF EXISTS media;

@@ -1,0 +1,63 @@
+# ──────────────────────────────────────────────────────────
+# PixelVault / Vault - Git Ignore
+# ──────────────────────────────────────────────────────────
+
+# OS Metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+
+# IDE & Editors
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# Android & Gradle Build Artifacts
+.gradle/
+android/.gradle/
+build/
+android/build/
+app/build/
+android/app/build/
+android/local.properties
+local.properties
+android/captures/
+android/.cxx/
+android/.externalNativeBuild/
+
+# Binaries, Packages, and Keystores
+*.apk
+*.aab
+*.dex
+*.class
+*.jks
+*.keystore
+signing.properties
+secrets.properties
+
+# Go Backend Build Artifacts
+backend/server.exe
+backend/server
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Local Backend Storage & Environment
+backend/storage/
+backend/storage/*
+backend/.env
+.env
+storage/
+
+# Logs & Dumps
+*.log

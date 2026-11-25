@@ -1,0 +1,61 @@
+# PixelVault Caddyfile
+# Replace yourdomain.com with your actual domain
+
+yourdomain.com {
+    # Automatic HTTPS via Let's Encrypt
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Frame-Options "SAMEORIGIN"
+        X-Content-Type-Options "nosniff"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # Proxy to backend
+    reverse_proxy backend:8080 {
+        health_uri /api/health
+        health_interval 30s
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Encode responses
+    encode gzip zstd
+
+    # Access logs
+    log {
+        output file /var/log/caddy/access.log
+        format json
+    }
+}
+
+# MinIO Console
+minio.yourdomain.com {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
+    reverse_proxy minio:9001 {
+        header_up X-Real-IP {remote_host}
+    }
+
+    encode gzip
+}
+
+# MinIO S3 API
+s3.yourdomain.com {
+    tls {
+        protocols tls1.2 tls1.3
+    }
+
+    reverse_proxy minio:9000 {
+        header_up X-Real-IP {remote_host}
+    }
+}

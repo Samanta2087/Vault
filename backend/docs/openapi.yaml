@@ -1,0 +1,865 @@
+openapi: 3.0.3
+info:
+  title: PixelVault API
+  description: Self-hosted photo and video gallery API
+  version: 1.0.0
+  contact:
+    name: PixelVault
+
+servers:
+  - url: https://yourdomain.com/api
+    description: Production server
+  - url: http://localhost:8080/api
+    description: Local development
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        role:
+          type: string
+          enum: [user, admin]
+        created_at:
+          type: string
+          format: date-time
+
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserResponse'
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        device_name:
+          type: string
+        device_type:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        device_name:
+          type: string
+        device_type:
+          type: string
+
+    Media:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        original_name:
+          type: string
+        mime_type:
+          type: string
+        size:
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+        duration:
+          type: number
+          nullable: true
+        storage_path:
+          type: string
+        thumb_path:
+          type: string
+        taken_at:
+          type: string
+          format: date-time
+          nullable: true
+        lat:
+          type: number
+          nullable: true
+        lng:
+          type: number
+          nullable: true
+        is_favorite:
+          type: boolean
+        is_archived:
+          type: boolean
+        is_deleted:
+          type: boolean
+        media_type:
+          type: string
+          enum: [photo, video]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    MediaList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Media'
+        next_cursor:
+          type: string
+
+    Album:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        cover_id:
+          type: string
+          format: uuid
+          nullable: true
+        media_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateAlbumRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        cover_id:
+          type: string
+          format: uuid
+
+    AddMediaRequest:
+      type: object
+      required: [media_ids]
+      properties:
+        media_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    SignedURLResponse:
+      type: object
+      properties:
+        url:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+
+    InitUploadRequest:
+      type: object
+      required: [filename, mime_type, total_size]
+      properties:
+        filename:
+          type: string
+        mime_type:
+          type: string
+        total_size:
+          type: integer
+
+    InitUploadResponse:
+      type: object
+      properties:
+        upload_id:
+          type: string
+          format: uuid
+        chunk_size:
+          type: integer
+
+    AdminStats:
+      type: object
+      properties:
+        user_count:
+          type: integer
+        media_count:
+          type: integer
+        total_bytes:
+          type: integer
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Email already registered
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Tokens refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid or expired refresh token
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '204':
+          description: Logged out successfully
+
+  /media/upload/init:
+    post:
+      tags: [Media]
+      summary: Initialize chunked upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitUploadRequest'
+      responses:
+        '201':
+          description: Upload session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InitUploadResponse'
+
+  /media/upload/{id}:
+    patch:
+      tags: [Media]
+      summary: Upload a chunk
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: X-Chunk-Index
+          in: header
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Chunk uploaded
+
+  /media/upload/{id}/complete:
+    post:
+      tags: [Media]
+      summary: Complete chunked upload
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: Media created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Media'
+
+  /media:
+    get:
+      tags: [Media]
+      summary: List media
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: archived
+          in: query
+          schema:
+            type: boolean
+        - name: favorite
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Media list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaList'
+
+  /media/{id}:
+    get:
+      tags: [Media]
+      summary: Get media by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Media item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Media'
+        '404':
+          description: Not found
+    delete:
+      tags: [Media]
+      summary: Soft delete media
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Deleted
+
+  /media/{id}/permanent:
+    delete:
+      tags: [Media]
+      summary: Permanently delete media
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Permanently deleted
+
+  /media/{id}/favorite:
+    put:
+      tags: [Media]
+      summary: Toggle favorite
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Updated media
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Media'
+
+  /media/{id}/archive:
+    put:
+      tags: [Media]
+      summary: Toggle archive
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Updated media
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Media'
+
+  /media/{id}/thumbnail:
+    get:
+      tags: [Media]
+      summary: Get thumbnail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Thumbnail image
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+
+  /media/signed-url/{id}:
+    get:
+      tags: [Media]
+      summary: Get a signed URL for a media file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Signed URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SignedURLResponse'
+
+  /media/file/{token}:
+    get:
+      tags: [Media]
+      summary: Serve a file via signed token
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: exp
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File content
+        '401':
+          description: Invalid token
+        '410':
+          description: Token expired
+
+  /albums:
+    post:
+      tags: [Albums]
+      summary: Create album
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAlbumRequest'
+      responses:
+        '201':
+          description: Album created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Album'
+    get:
+      tags: [Albums]
+      summary: List albums
+      responses:
+        '200':
+          description: Album list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Album'
+
+  /albums/{id}:
+    get:
+      tags: [Albums]
+      summary: Get album
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Album
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Album'
+    put:
+      tags: [Albums]
+      summary: Update album
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAlbumRequest'
+      responses:
+        '200':
+          description: Updated album
+    delete:
+      tags: [Albums]
+      summary: Delete album
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Deleted
+
+  /albums/{id}/media:
+    post:
+      tags: [Albums]
+      summary: Add media to album
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddMediaRequest'
+      responses:
+        '204':
+          description: Media added
+    get:
+      tags: [Albums]
+      summary: Get album media
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Album media list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaList'
+
+  /albums/{id}/media/{mediaID}:
+    delete:
+      tags: [Albums]
+      summary: Remove media from album
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: mediaID
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Removed
+
+  /search:
+    get:
+      tags: [Search]
+      summary: Search media
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: album_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: lat
+          in: query
+          schema:
+            type: number
+        - name: lng
+          in: query
+          schema:
+            type: number
+        - name: radius_km
+          in: query
+          schema:
+            type: number
+        - name: favorite
+          in: query
+          schema:
+            type: boolean
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaList'
+
+  /admin/stats:
+    get:
+      tags: [Admin]
+      summary: Get system statistics
+      responses:
+        '200':
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStats'
+
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: List all users
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: User list
+
+  /admin/users/{id}:
+    delete:
+      tags: [Admin]
+      summary: Delete a user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: User deleted
+
+  /admin/users/{id}/role:
+    put:
+      tags: [Admin]
+      summary: Update user role
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                  enum: [user, admin]
+      responses:
+        '200':
+          description: Role updated
+
+components:
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
